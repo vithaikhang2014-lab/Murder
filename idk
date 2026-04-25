@@ -1,0 +1,416 @@
+--[[
+    🔪 MM2 PRO SCRIPT 🔫
+    Tính năng:
+    ✔ ESP phân biệt: Sát nhân(đỏ), Cảnh sát(xanh dương), Người vô tội(xanh lá), Anh hùng(vàng)
+    ✔ Bám đầu khi ấn chuột phải (Silent Aim)
+    ✔ Nhảy vô tận (Infinite Jump)
+    ✔ Định vị súng (Gun ESP)
+    ✔ Auto Farm coins
+    ✔ Teleport to gun
+    ✔ WalkSpeed / JumpPower tùy chỉnh
+    ✔ Noclip
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- ========== GUI ==========
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "MM2_Pro_Script"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = game:GetService("CoreGui")
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 250, 0, 350)
+mainFrame.Position = UDim2.new(0.02, 0, 0.2, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+mainFrame.BackgroundTransparency = 0.1
+mainFrame.BorderSizePixel = 1
+mainFrame.BorderColor3 = Color3.fromRGB(100, 100, 150)
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 35)
+title.BackgroundTransparency = 1
+title.Text = "🔪 MM2 PRO SCRIPT 🔫"
+title.TextColor3 = Color3.fromRGB(255, 100, 100)
+title.TextSize = 18
+title.Font = Enum.Font.GothamBold
+title.Parent = mainFrame
+
+local function createButton(text, position, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.9, 0, 0, 35)
+    btn.Position = UDim2.new(0.05, 0, position, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.TextSize = 13
+    btn.Parent = mainFrame
+    btn.MouseButton1Click:Connect(callback)
+    return btn
+end
+
+local function createToggle(text, position, callback)
+    local toggle = Instance.new("TextButton")
+    toggle.Size = UDim2.new(0.9, 0, 0, 35)
+    toggle.Position = UDim2.new(0.05, 0, position, 0)
+    toggle.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    toggle.Text = text .. " 🔴 OFF"
+    toggle.TextColor3 = Color3.fromRGB(255, 100, 100)
+    toggle.TextSize = 13
+    toggle.Parent = mainFrame
+    
+    local state = false
+    toggle.MouseButton1Click:Connect(function()
+        state = not state
+        if state then
+            toggle.Text = text .. " 🟢 ON"
+            toggle.TextColor3 = Color3.fromRGB(100, 255, 100)
+        else
+            toggle.Text = text .. " 🔴 OFF"
+            toggle.TextColor3 = Color3.fromRGB(255, 100, 100)
+        end
+        callback(state)
+    end)
+    return toggle, function() return state end
+end
+
+local espToggle, getEspState = createToggle("ESP", 0.14, function(val) end)
+local silentAimToggle, getSilentAimState = createToggle("Silent Aim (Chuột phải)", 0.27, function(val) end)
+local autoFarmToggle, getAutoFarmState = createToggle("Auto Farm", 0.40, function(val) end)
+local noclipToggle, getNoclipState = createToggle("Noclip", 0.53, function(val) end)
+
+-- Speed Slider
+local speedLabel = Instance.new("TextLabel")
+speedLabel.Size = UDim2.new(0.9, 0, 0, 25)
+speedLabel.Position = UDim2.new(0.05, 0, 0.66, 0)
+speedLabel.BackgroundTransparency = 1
+speedLabel.Text = "WalkSpeed: 16"
+speedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+speedLabel.TextSize = 12
+speedLabel.Parent = mainFrame
+
+local speedSlider = Instance.new("TextBox")
+speedSlider.Size = UDim2.new(0.9, 0, 0, 25)
+speedSlider.Position = UDim2.new(0.05, 0, 0.72, 0)
+speedSlider.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+speedSlider.Text = "16"
+speedSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedSlider.TextSize = 12
+speedSlider.Parent = mainFrame
+speedSlider.FocusLost:Connect(function()
+    local val = tonumber(speedSlider.Text)
+    if val and val > 0 then
+        speedLabel.Text = "WalkSpeed: " .. val
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.WalkSpeed = val
+        end
+    else
+        speedSlider.Text = "16"
+    end
+end)
+
+-- JumpPower Slider
+local jumpLabel = Instance.new("TextLabel")
+jumpLabel.Size = UDim2.new(0.9, 0, 0, 25)
+jumpLabel.Position = UDim2.new(0.05, 0, 0.80, 0)
+jumpLabel.BackgroundTransparency = 1
+jumpLabel.Text = "JumpPower: 50"
+jumpLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+jumpLabel.TextSize = 12
+jumpLabel.Parent = mainFrame
+
+local jumpSlider = Instance.new("TextBox")
+jumpSlider.Size = UDim2.new(0.9, 0, 0, 25)
+jumpSlider.Position = UDim2.new(0.05, 0, 0.86, 0)
+jumpSlider.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+jumpSlider.Text = "50"
+jumpSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
+jumpSlider.TextSize = 12
+jumpSlider.Parent = mainFrame
+jumpSlider.FocusLost:Connect(function()
+    local val = tonumber(jumpSlider.Text)
+    if val and val > 0 then
+        jumpLabel.Text = "JumpPower: " .. val
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            LocalPlayer.Character.Humanoid.JumpPower = val
+        end
+    else
+        jumpSlider.Text = "50"
+    end
+end)
+
+-- ========== INFINITE JUMP (Nhảy vô tận) ==========
+local infiniteJumpActive = true
+UserInputService.JumpRequest:Connect(function()
+    if infiniteJumpActive and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        local humanoid = LocalPlayer.Character.Humanoid
+        if humanoid:GetState() == Enum.HumanoidStateType.Landed or humanoid:GetState() == Enum.HumanoidStateType.Freefall then
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
+
+-- ========== ESP ==========
+local espObjects = {}
+local roleColors = {
+    Murderer = Color3.fromRGB(255, 0, 0),      -- Đỏ
+    Sheriff = Color3.fromRGB(0, 150, 255),     -- Xanh nước biển
+    Innocent = Color3.fromRGB(0, 255, 0),      -- Xanh lá
+    Hero = Color3.fromRGB(255, 215, 0)         -- Vàng
+}
+
+local function getPlayerRole(player)
+    -- Kiểm tra các dấu hiệu nhận biết role trong game
+    local character = player.Character
+    if not character then return "Innocent" end
+    
+    -- Nếu có knife tool -> sát nhân
+    if player.Backpack:FindFirstChild("Knife") or character:FindFirstChild("Knife") then
+        return "Murderer"
+    end
+    
+    -- Nếu có gun -> cảnh sát hoặc anh hùng
+    local hasGun = player.Backpack:FindFirstChild("Gun") or character:FindFirstChild("Gun")
+    if hasGun then
+        -- Kiểm tra xem có phải hero không (hero thường có skin đặc biệt)
+        if character:FindFirstChild("Head") and character.Head:FindFirstChild("Handle") then
+            return "Hero"
+        end
+        return "Sheriff"
+    end
+    
+    return "Innocent"
+end
+
+local function getDroppedGun()
+    for _, item in pairs(workspace:GetDescendants()) do
+        if item:IsA("Tool") and (item.Name:lower():find("gun") or item.Name:lower():find("revolver")) then
+            return item
+        end
+    end
+    return nil
+end
+
+local function updateESP()
+    for _, v in pairs(espObjects) do pcall(function() v:Destroy() end) end
+    espObjects = {}
+    
+    if not getEspState() then return end
+    
+    -- ESP cho người chơi
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("Head") then
+            local role = getPlayerRole(plr)
+            local color = roleColors[role] or roleColors.Innocent
+            
+            local head = plr.Character.Head
+            
+            local billboard = Instance.new("BillboardGui")
+            billboard.Size = UDim2.new(0, 4, 0, 4)
+            billboard.StudsOffset = Vector3.new(0, 1.5, 0)
+            billboard.AlwaysOnTop = true
+            billboard.Parent = head
+            
+            local box = Instance.new("Frame")
+            box.Size = UDim2.new(0, 6, 0, 6)
+            box.BackgroundColor3 = color
+            box.BorderSizePixel = 0
+            box.Parent = billboard
+            
+            local nameTag = Instance.new("BillboardGui")
+            nameTag.Size = UDim2.new(0, 120, 0, 25)
+            nameTag.StudsOffset = Vector3.new(0, 2.2, 0)
+            nameTag.AlwaysOnTop = true
+            nameTag.Parent = head
+            
+            local nameLabel = Instance.new("TextLabel")
+            nameLabel.Size = UDim2.new(1, 0, 1, 0)
+            nameLabel.BackgroundTransparency = 0.5
+            nameLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+            nameLabel.Text = plr.Name .. " [" .. role .. "]"
+            nameLabel.TextColor3 = color
+            nameLabel.TextSize = 11
+            nameLabel.Font = Enum.Font.GothamBold
+            nameLabel.Parent = nameTag
+            
+            table.insert(espObjects, billboard)
+            table.insert(espObjects, nameTag)
+        end
+    end
+    
+    -- ESP cho súng rơi [citation:1][citation:2]
+    local gun = getDroppedGun()
+    if gun and gun.Parent == workspace then
+        local gunBillboard = Instance.new("BillboardGui")
+        gunBillboard.Size = UDim2.new(0, 4, 0, 4)
+        gunBillboard.StudsOffset = Vector3.new(0, 0.5, 0)
+        gunBillboard.AlwaysOnTop = true
+        gunBillboard.Parent = gun
+        
+        local gunFrame = Instance.new("Frame")
+        gunFrame.Size = UDim2.new(0, 8, 0, 8)
+        gunFrame.BackgroundColor3 = Color3.fromRGB(255, 165, 0) -- Màu cam
+        gunFrame.BorderSizePixel = 0
+        gunFrame.Parent = gunBillboard
+        
+        local gunTag = Instance.new("BillboardGui")
+        gunTag.Size = UDim2.new(0, 80, 0, 20)
+        gunTag.StudsOffset = Vector3.new(0, 1, 0)
+        gunTag.AlwaysOnTop = true
+        gunTag.Parent = gun
+        
+        local gunLabel = Instance.new("TextLabel")
+        gunLabel.Size = UDim2.new(1, 0, 1, 0)
+        gunLabel.BackgroundTransparency = 0.5
+        gunLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+        gunLabel.Text = "🔫 GUN"
+        gunLabel.TextColor3 = Color3.fromRGB(255, 165, 0)
+        gunLabel.TextSize = 10
+        gunLabel.Font = Enum.Font.GothamBold
+        gunLabel.Parent = gunTag
+        
+        table.insert(espObjects, gunBillboard)
+        table.insert(espObjects, gunTag)
+    end
+end
+
+-- ========== SILENT AIM (Bám đầu khi ấn chuột phải) ==========
+local rightMousePressed = false
+
+local function getClosestPlayerToCursor()
+    local mouseLoc = UserInputService:GetMouseLocation()
+    local center = Vector2.new(mouseLoc.X, mouseLoc.Y)
+    local bestDist = 100
+    local bestHead = nil
+    
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character then
+            local head = plr.Character:FindFirstChild("Head")
+            if head then
+                local screenPos, onScreen = Camera:WorldToScreenPoint(head.Position)
+                if onScreen then
+                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+                    if dist < bestDist then
+                        bestDist = dist
+                        bestHead = head
+                    end
+                end
+            end
+        end
+    end
+    return bestHead
+end
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        rightMousePressed = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        rightMousePressed = false
+    end
+end)
+
+-- ========== AUTO FARM COINS [citation:1][citation:3] ==========
+local autoFarmRunning = false
+local function startAutoFarm()
+    if autoFarmRunning then return end
+    autoFarmRunning = true
+    
+    task.spawn(function()
+        while autoFarmRunning and getAutoFarmState() do
+            -- Tìm coin trong game (thường là BeachBall hoặc Coin)
+            for _, obj in pairs(workspace:GetDescendants()) do
+                if obj:IsA("BasePart") and (obj.Name:lower():find("coin") or obj.Name:lower():find("beachball")) then
+                    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                        LocalPlayer.Character.HumanoidRootPart.CFrame = obj.CFrame
+                        task.wait(0.1)
+                    end
+                end
+            end
+            task.wait(0.5)
+        end
+    end)
+end
+
+local function stopAutoFarm()
+    autoFarmRunning = false
+end
+
+-- ========== TELEPORT TO GUN [citation:1][citation:10] ==========
+local function teleportToGun()
+    local gun = getDroppedGun()
+    if gun and LocalPlayer.Character then
+        LocalPlayer.Character:SetPrimaryPartCFrame(gun.CFrame * CFrame.new(0, 2, 0))
+    end
+end
+
+-- Nút Teleport to Gun
+local tpGunBtn = createButton("🔫 Teleport to Gun", 0.93, teleportToGun)
+
+-- ========== NOCLIP [citation:3] ==========
+local noclipActive = false
+local function updateNoclip()
+    noclipActive = getNoclipState()
+end
+
+-- Override noclip
+local noclipConnection
+noclipConnection = RunService.Stepped:Connect(function()
+    if noclipActive and LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
+-- ========== MAIN LOOP ==========
+RunService.RenderStepped:Connect(function()
+    updateESP() -- Cập nhật ESP mỗi frame
+    
+    -- Silent Aim [citation:2][citation:9]
+    if getSilentAimState() and rightMousePressed and Camera.CameraType == Enum.CameraType.Custom then
+        local targetHead = getClosestPlayerToCursor()
+        if targetHead then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetHead.Position)
+        end
+    end
+    
+    -- Auto Farm
+    if getAutoFarmState() then
+        startAutoFarm()
+    else
+        stopAutoFarm()
+    end
+    
+    -- Noclip update
+    updateNoclip()
+    
+    -- Cập nhật tốc độ khi character spawn
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        local hum = LocalPlayer.Character.Humanoid
+        local speedVal = tonumber(speedSlider.Text) or 16
+        local jumpVal = tonumber(jumpSlider.Text) or 50
+        if hum.WalkSpeed ~= speedVal then hum.WalkSpeed = speedVal end
+        if hum.JumpPower ~= jumpVal then hum.JumpPower = jumpVal end
+    end
+end)
+
+-- Cập nhật khi có người chơi mới
+Players.PlayerAdded:Connect(function() updateESP() end)
+Players.PlayerRemoving:Connect(function() updateESP() end)
+
+print("🔪 MM2 PRO SCRIPT LOADED! 🔫")
+print("Tính năng: ESP màu theo role | Silent Aim chuột phải | Nhảy vô tận | Auto Farm | Teleport Gun")
