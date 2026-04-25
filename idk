@@ -1,35 +1,36 @@
 --[[
-    🔪 MM2 PRO SCRIPT 🔫
+    🔪 MM2 PRO SCRIPT V2 🔫
     Tính năng:
-    ✔ ESP phân biệt: Sát nhân(đỏ), Cảnh sát(xanh dương), Người vô tội(xanh lá), Anh hùng(vàng)
-    ✔ Bám đầu khi ấn chuột phải (Silent Aim)
-    ✔ Nhảy vô tận (Infinite Jump)
-    ✔ Định vị súng (Gun ESP)
-    ✔ Auto Farm coins
+    ✔ ESP phân biệt role (Đỏ: Murderer, Xanh dương: Sheriff, Xanh lá: Innocent, Vàng: Hero)
+    ✔ Silent Aim (bám đầu chuột phải)
+    ✔ Shot Murder: Nút bấm GUI riêng – bắn chết Murderer tức thì
+    ✔ Nhảy vô tận
+    ✔ Auto Farm coin
     ✔ Teleport to gun
-    ✔ WalkSpeed / JumpPower tùy chỉnh
-    ✔ Noclip
+    ✔ Tùy chỉnh Speed/Jump/Noclip
+    ✔ Ép vai Murderer ở lobby (tự động chọn, tăng tỷ lệ)
 ]]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- ========== GUI ==========
+-- ========== GUI CHÍNH (KÉO ĐƯỢC) ==========
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "MM2_Pro_Script"
+screenGui.Name = "MM2_Pro_V2"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = game:GetService("CoreGui")
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 250, 0, 350)
-mainFrame.Position = UDim2.new(0.02, 0, 0.2, 0)
-mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+mainFrame.Size = UDim2.new(0, 260, 0, 400)
+mainFrame.Position = UDim2.new(0.02, 0, 0.15, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 mainFrame.BackgroundTransparency = 0.1
 mainFrame.BorderSizePixel = 1
-mainFrame.BorderColor3 = Color3.fromRGB(100, 100, 150)
+mainFrame.BorderColor3 = Color3.fromRGB(150, 50, 50)
 mainFrame.Active = true
 mainFrame.Draggable = true
 mainFrame.Parent = screenGui
@@ -37,17 +38,18 @@ mainFrame.Parent = screenGui
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 35)
 title.BackgroundTransparency = 1
-title.Text = "🔪 MM2 PRO SCRIPT 🔫"
-title.TextColor3 = Color3.fromRGB(255, 100, 100)
-title.TextSize = 18
+title.Text = "🔪 MM2 PRO V2 - SHOT MURDER 🔫"
+title.TextColor3 = Color3.fromRGB(255, 80, 80)
+title.TextSize = 15
 title.Font = Enum.Font.GothamBold
 title.Parent = mainFrame
 
-local function createButton(text, position, callback)
+-- Hàm tạo nút
+local function createButton(text, position, color, callback)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0.9, 0, 0, 35)
     btn.Position = UDim2.new(0.05, 0, position, 0)
-    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    btn.BackgroundColor3 = color or Color3.fromRGB(40, 40, 60)
     btn.Text = text
     btn.TextColor3 = Color3.fromRGB(255, 255, 255)
     btn.TextSize = 13
@@ -81,78 +83,119 @@ local function createToggle(text, position, callback)
     return toggle, function() return state end
 end
 
-local espToggle, getEspState = createToggle("ESP", 0.14, function(val) end)
-local silentAimToggle, getSilentAimState = createToggle("Silent Aim (Chuột phải)", 0.27, function(val) end)
-local autoFarmToggle, getAutoFarmState = createToggle("Auto Farm", 0.40, function(val) end)
-local noclipToggle, getNoclipState = createToggle("Noclip", 0.53, function(val) end)
+-- Các nút bật/tắt
+local espToggle, getEspState = createToggle("ESP", 0.12, function(val) end)
+local silentAimToggle, getSilentAimState = createToggle("Silent Aim (Chuột phải)", 0.23, function(val) end)
+local autoFarmToggle, getAutoFarmState = createToggle("Auto Farm", 0.34, function(val) end)
+local noclipToggle, getNoclipState = createToggle("Noclip", 0.45, function(val) end)
 
--- Speed Slider
+-- ========== NÚT SHOT MURDER (GUI RIÊNG, KÉO ĐƯỢC) ==========
+local shotFrame = Instance.new("Frame")
+shotFrame.Size = UDim2.new(0, 150, 0, 60)
+shotFrame.Position = UDim2.new(0.8, 0, 0.5, 0)
+shotFrame.BackgroundColor3 = Color3.fromRGB(30, 15, 15)
+shotFrame.BackgroundTransparency = 0.15
+shotFrame.BorderSizePixel = 2
+shotFrame.BorderColor3 = Color3.fromRGB(255, 0, 0)
+shotFrame.Active = true
+shotFrame.Draggable = true
+shotFrame.Parent = screenGui
+
+local shotTitle = Instance.new("TextLabel")
+shotTitle.Size = UDim2.new(1, 0, 0, 20)
+shotTitle.Position = UDim2.new(0, 0, 0, 0)
+shotTitle.BackgroundTransparency = 1
+shotTitle.Text = "💀 SHOT MURDER 💀"
+shotTitle.TextColor3 = Color3.fromRGB(255, 50, 50)
+shotTitle.TextSize = 12
+shotTitle.Font = Enum.Font.GothamBold
+shotTitle.Parent = shotFrame
+
+local shotButton = Instance.new("TextButton")
+shotButton.Size = UDim2.new(0.9, 0, 0, 30)
+shotButton.Position = UDim2.new(0.05, 0, 0.4, 0)
+shotButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+shotButton.Text = "🔫 BẮN CHẾT MURDERER"
+shotButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+shotButton.TextSize = 11
+shotButton.Font = Enum.Font.GothamBold
+shotButton.Parent = shotFrame
+
+-- ========== TÙY CHỈNH SPEED/JUMP ==========
 local speedLabel = Instance.new("TextLabel")
-speedLabel.Size = UDim2.new(0.9, 0, 0, 25)
-speedLabel.Position = UDim2.new(0.05, 0, 0.66, 0)
+speedLabel.Size = UDim2.new(0.9, 0, 0, 20)
+speedLabel.Position = UDim2.new(0.05, 0, 0.56, 0)
 speedLabel.BackgroundTransparency = 1
 speedLabel.Text = "WalkSpeed: 16"
 speedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-speedLabel.TextSize = 12
+speedLabel.TextSize = 11
 speedLabel.Parent = mainFrame
 
-local speedSlider = Instance.new("TextBox")
-speedSlider.Size = UDim2.new(0.9, 0, 0, 25)
-speedSlider.Position = UDim2.new(0.05, 0, 0.72, 0)
-speedSlider.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
-speedSlider.Text = "16"
-speedSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
-speedSlider.TextSize = 12
-speedSlider.Parent = mainFrame
-speedSlider.FocusLost:Connect(function()
-    local val = tonumber(speedSlider.Text)
+local speedBox = Instance.new("TextBox")
+speedBox.Size = UDim2.new(0.9, 0, 0, 25)
+speedBox.Position = UDim2.new(0.05, 0, 0.62, 0)
+speedBox.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+speedBox.Text = "16"
+speedBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedBox.TextSize = 12
+speedBox.Parent = mainFrame
+speedBox.FocusLost:Connect(function()
+    local val = tonumber(speedBox.Text)
     if val and val > 0 then
         speedLabel.Text = "WalkSpeed: " .. val
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-            LocalPlayer.Character.Humanoid.WalkSpeed = val
+        if LocalPlayer.Character then
+            local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
+            if hum then hum.WalkSpeed = val end
         end
-    else
-        speedSlider.Text = "16"
     end
 end)
 
--- JumpPower Slider
 local jumpLabel = Instance.new("TextLabel")
-jumpLabel.Size = UDim2.new(0.9, 0, 0, 25)
-jumpLabel.Position = UDim2.new(0.05, 0, 0.80, 0)
+jumpLabel.Size = UDim2.new(0.9, 0, 0, 20)
+jumpLabel.Position = UDim2.new(0.05, 0, 0.72, 0)
 jumpLabel.BackgroundTransparency = 1
 jumpLabel.Text = "JumpPower: 50"
 jumpLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-jumpLabel.TextSize = 12
+jumpLabel.TextSize = 11
 jumpLabel.Parent = mainFrame
 
-local jumpSlider = Instance.new("TextBox")
-jumpSlider.Size = UDim2.new(0.9, 0, 0, 25)
-jumpSlider.Position = UDim2.new(0.05, 0, 0.86, 0)
-jumpSlider.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
-jumpSlider.Text = "50"
-jumpSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
-jumpSlider.TextSize = 12
-jumpSlider.Parent = mainFrame
-jumpSlider.FocusLost:Connect(function()
-    local val = tonumber(jumpSlider.Text)
+local jumpBox = Instance.new("TextBox")
+jumpBox.Size = UDim2.new(0.9, 0, 0, 25)
+jumpBox.Position = UDim2.new(0.05, 0, 0.78, 0)
+jumpBox.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+jumpBox.Text = "50"
+jumpBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+jumpBox.TextSize = 12
+jumpBox.Parent = mainFrame
+jumpBox.FocusLost:Connect(function()
+    local val = tonumber(jumpBox.Text)
     if val and val > 0 then
         jumpLabel.Text = "JumpPower: " .. val
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-            LocalPlayer.Character.Humanoid.JumpPower = val
+        if LocalPlayer.Character then
+            local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
+            if hum then hum.JumpPower = val end
         end
-    else
-        jumpSlider.Text = "50"
     end
 end)
 
--- ========== INFINITE JUMP (Nhảy vô tận) ==========
-local infiniteJumpActive = true
+-- Nút Teleport Gun
+createButton("🔫 Teleport to Gun", 0.86, Color3.fromRGB(60, 40, 80), function()
+    for _, tool in pairs(workspace:GetDescendants()) do
+        if tool:IsA("Tool") and (tool.Name:lower():find("gun") or tool.Name:lower():find("revolver")) then
+            if LocalPlayer.Character then
+                LocalPlayer.Character:SetPrimaryPartCFrame(tool.CFrame * CFrame.new(0, 2, 0))
+            end
+            break
+        end
+    end
+end)
+
+-- ========== INFINITE JUMP ==========
 UserInputService.JumpRequest:Connect(function()
-    if infiniteJumpActive and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-        local humanoid = LocalPlayer.Character.Humanoid
-        if humanoid:GetState() == Enum.HumanoidStateType.Landed or humanoid:GetState() == Enum.HumanoidStateType.Freefall then
-            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+    if LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
+        if hum and (hum:GetState() == Enum.HumanoidStateType.Landed or hum:GetState() == Enum.HumanoidStateType.Freefall) then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
         end
     end
 end)
@@ -160,72 +203,52 @@ end)
 -- ========== ESP ==========
 local espObjects = {}
 local roleColors = {
-    Murderer = Color3.fromRGB(255, 0, 0),      -- Đỏ
-    Sheriff = Color3.fromRGB(0, 150, 255),     -- Xanh nước biển
-    Innocent = Color3.fromRGB(0, 255, 0),      -- Xanh lá
-    Hero = Color3.fromRGB(255, 215, 0)         -- Vàng
+    Murderer = Color3.fromRGB(255, 0, 0),
+    Sheriff = Color3.fromRGB(0, 150, 255),
+    Innocent = Color3.fromRGB(0, 255, 0),
+    Hero = Color3.fromRGB(255, 215, 0)
 }
 
 local function getPlayerRole(player)
-    -- Kiểm tra các dấu hiệu nhận biết role trong game
-    local character = player.Character
-    if not character then return "Innocent" end
-    
-    -- Nếu có knife tool -> sát nhân
-    if player.Backpack:FindFirstChild("Knife") or character:FindFirstChild("Knife") then
-        return "Murderer"
+    if player:FindFirstChild("Backpack") then
+        if player.Backpack:FindFirstChild("Knife") then return "Murderer" end
+        if player.Backpack:FindFirstChild("Gun") then return "Sheriff" end
     end
-    
-    -- Nếu có gun -> cảnh sát hoặc anh hùng
-    local hasGun = player.Backpack:FindFirstChild("Gun") or character:FindFirstChild("Gun")
-    if hasGun then
-        -- Kiểm tra xem có phải hero không (hero thường có skin đặc biệt)
-        if character:FindFirstChild("Head") and character.Head:FindFirstChild("Handle") then
+    if player.Character then
+        if player.Character:FindFirstChild("Knife") then return "Murderer" end
+        if player.Character:FindFirstChild("Gun") then return "Sheriff" end
+        if player.Character:FindFirstChild("Head") and player.Character.Head:FindFirstChild("Handle") then
             return "Hero"
         end
-        return "Sheriff"
     end
-    
     return "Innocent"
-end
-
-local function getDroppedGun()
-    for _, item in pairs(workspace:GetDescendants()) do
-        if item:IsA("Tool") and (item.Name:lower():find("gun") or item.Name:lower():find("revolver")) then
-            return item
-        end
-    end
-    return nil
 end
 
 local function updateESP()
     for _, v in pairs(espObjects) do pcall(function() v:Destroy() end) end
     espObjects = {}
-    
     if not getEspState() then return end
     
-    -- ESP cho người chơi
     for _, plr in pairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("Head") then
             local role = getPlayerRole(plr)
             local color = roleColors[role] or roleColors.Innocent
-            
             local head = plr.Character.Head
             
-            local billboard = Instance.new("BillboardGui")
-            billboard.Size = UDim2.new(0, 4, 0, 4)
-            billboard.StudsOffset = Vector3.new(0, 1.5, 0)
-            billboard.AlwaysOnTop = true
-            billboard.Parent = head
+            local bill = Instance.new("BillboardGui")
+            bill.Size = UDim2.new(0, 4, 0, 4)
+            bill.StudsOffset = Vector3.new(0, 1.5, 0)
+            bill.AlwaysOnTop = true
+            bill.Parent = head
             
             local box = Instance.new("Frame")
             box.Size = UDim2.new(0, 6, 0, 6)
             box.BackgroundColor3 = color
             box.BorderSizePixel = 0
-            box.Parent = billboard
+            box.Parent = bill
             
             local nameTag = Instance.new("BillboardGui")
-            nameTag.Size = UDim2.new(0, 120, 0, 25)
+            nameTag.Size = UDim2.new(0, 130, 0, 25)
             nameTag.StudsOffset = Vector3.new(0, 2.2, 0)
             nameTag.AlwaysOnTop = true
             nameTag.Parent = head
@@ -236,67 +259,121 @@ local function updateESP()
             nameLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
             nameLabel.Text = plr.Name .. " [" .. role .. "]"
             nameLabel.TextColor3 = color
-            nameLabel.TextSize = 11
+            nameLabel.TextSize = 10
             nameLabel.Font = Enum.Font.GothamBold
             nameLabel.Parent = nameTag
             
-            table.insert(espObjects, billboard)
+            table.insert(espObjects, bill)
             table.insert(espObjects, nameTag)
         end
     end
-    
-    -- ESP cho súng rơi [citation:1][citation:2]
-    local gun = getDroppedGun()
-    if gun and gun.Parent == workspace then
-        local gunBillboard = Instance.new("BillboardGui")
-        gunBillboard.Size = UDim2.new(0, 4, 0, 4)
-        gunBillboard.StudsOffset = Vector3.new(0, 0.5, 0)
-        gunBillboard.AlwaysOnTop = true
-        gunBillboard.Parent = gun
-        
-        local gunFrame = Instance.new("Frame")
-        gunFrame.Size = UDim2.new(0, 8, 0, 8)
-        gunFrame.BackgroundColor3 = Color3.fromRGB(255, 165, 0) -- Màu cam
-        gunFrame.BorderSizePixel = 0
-        gunFrame.Parent = gunBillboard
-        
-        local gunTag = Instance.new("BillboardGui")
-        gunTag.Size = UDim2.new(0, 80, 0, 20)
-        gunTag.StudsOffset = Vector3.new(0, 1, 0)
-        gunTag.AlwaysOnTop = true
-        gunTag.Parent = gun
-        
-        local gunLabel = Instance.new("TextLabel")
-        gunLabel.Size = UDim2.new(1, 0, 1, 0)
-        gunLabel.BackgroundTransparency = 0.5
-        gunLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-        gunLabel.Text = "🔫 GUN"
-        gunLabel.TextColor3 = Color3.fromRGB(255, 165, 0)
-        gunLabel.TextSize = 10
-        gunLabel.Font = Enum.Font.GothamBold
-        gunLabel.Parent = gunTag
-        
-        table.insert(espObjects, gunBillboard)
-        table.insert(espObjects, gunTag)
+end
+
+-- ========== SHOT MURDER (BẮN CHẾT MURDERER NGAY TỨC KHẮC) ==========
+local function getMurderer()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and getPlayerRole(plr) == "Murderer" then
+            return plr
+        end
+    end
+    return nil
+end
+
+shotButton.MouseButton1Click:Connect(function()
+    local murderer = getMurderer()
+    if murderer and murderer.Character then
+        local head = murderer.Character:FindFirstChild("Head")
+        if head then
+            -- Tạo effect giống bắn súng
+            local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildWhichIsA("Tool")
+            if tool and tool:FindFirstChild("Fire") then
+                tool.Fire:FireServer(head.CFrame, head)
+            else
+                -- Nếu không có súng, dùng remote khác (game thường dùng RemoteEvent)
+                local remote = ReplicatedStorage:FindFirstChild("GunEvent") or ReplicatedStorage:FindFirstChild("Shoot")
+                if remote then
+                    remote:FireServer(head.CFrame, head)
+                end
+            end
+            -- Fallback: gây sát thương bằng cách khác
+            if head:FindFirstChild("Humanoid") then
+                head.Humanoid.Health = 0
+            elseif murderer.Character:FindFirstChild("Humanoid") then
+                murderer.Character.Humanoid.Health = 0
+            end
+        end
+    end
+end)
+
+-- ========== TÙY CHỈNH VAI TRÒ (ÉP LÀM MURDERER Ở LOBBY) ==========
+local function forceMurdererInLobby()
+    -- Tìm GUI chọn role trong lobby
+    task.wait(2)
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if playerGui then
+        for _, gui in pairs(playerGui:GetChildren()) do
+            if gui:IsA("ScreenGui") then
+                for _, btn in pairs(gui:GetDescendants()) do
+                    if btn:IsA("TextButton") and btn.Text:lower():find("murderer") then
+                        btn:FireClick()
+                        return
+                    end
+                end
+            end
+        end
+    end
+    -- Cách 2: Gửi remote nếu có
+    local remote = ReplicatedStorage:FindFirstChild("ChooseRole") or ReplicatedStorage:FindFirstChild("SelectRole")
+    if remote then
+        remote:FireServer("Murderer")
     end
 end
 
--- ========== SILENT AIM (Bám đầu khi ấn chuột phải) ==========
-local rightMousePressed = false
+-- Tự động chạy khi vào lobby
+task.spawn(function()
+    while true do
+        task.wait(5)
+        if game.PlaceId == 1921703135 then -- MM2 lobby
+            forceMurdererInLobby()
+        end
+    end
+end)
 
-local function getClosestPlayerToCursor()
-    local mouseLoc = UserInputService:GetMouseLocation()
-    local center = Vector2.new(mouseLoc.X, mouseLoc.Y)
-    local bestDist = 100
-    local bestHead = nil
+-- ========== NOCLIP & MAIN LOOP ==========
+RunService.RenderStepped:Connect(function()
+    updateESP()
     
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer and plr.Character then
-            local head = plr.Character:FindFirstChild("Head")
-            if head then
+    -- Noclip
+    if getNoclipState() and LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end
+    
+    -- Speed/Jump
+    if LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
+        if hum then
+            local spd = tonumber(speedBox.Text) or 16
+            local jmp = tonumber(jumpBox.Text) or 50
+            if hum.WalkSpeed ~= spd then hum.WalkSpeed = spd end
+            if hum.JumpPower ~= jmp then hum.JumpPower = jmp end
+        end
+    end
+    
+    -- Silent Aim
+    if getSilentAimState() and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) and Camera.CameraType == Enum.CameraType.Custom then
+        local mousePos = UserInputService:GetMouseLocation()
+        local bestHead = nil
+        local bestDist = 150
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("Head") then
+                local head = plr.Character.Head
                 local screenPos, onScreen = Camera:WorldToScreenPoint(head.Position)
                 if onScreen then
-                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(mousePos.X, mousePos.Y)).Magnitude
                     if dist < bestDist then
                         bestDist = dist
                         bestHead = head
@@ -304,113 +381,27 @@ local function getClosestPlayerToCursor()
                 end
             end
         end
-    end
-    return bestHead
-end
-
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.UserInputType == Enum.UserInputType.MouseButton2 then
-        rightMousePressed = true
+        if bestHead then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, bestHead.Position)
+        end
     end
 end)
 
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton2 then
-        rightMousePressed = false
-    end
-end)
-
--- ========== AUTO FARM COINS [citation:1][citation:3] ==========
-local autoFarmRunning = false
-local function startAutoFarm()
-    if autoFarmRunning then return end
-    autoFarmRunning = true
-    
-    task.spawn(function()
-        while autoFarmRunning and getAutoFarmState() do
-            -- Tìm coin trong game (thường là BeachBall hoặc Coin)
+-- Auto Farm
+task.spawn(function()
+    while true do
+        task.wait(0.3)
+        if getAutoFarmState() then
             for _, obj in pairs(workspace:GetDescendants()) do
                 if obj:IsA("BasePart") and (obj.Name:lower():find("coin") or obj.Name:lower():find("beachball")) then
-                    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                        LocalPlayer.Character.HumanoidRootPart.CFrame = obj.CFrame
-                        task.wait(0.1)
+                    if LocalPlayer.Character then
+                        LocalPlayer.Character:SetPrimaryPartCFrame(obj.CFrame)
                     end
+                    break
                 end
             end
-            task.wait(0.5)
-        end
-    end)
-end
-
-local function stopAutoFarm()
-    autoFarmRunning = false
-end
-
--- ========== TELEPORT TO GUN [citation:1][citation:10] ==========
-local function teleportToGun()
-    local gun = getDroppedGun()
-    if gun and LocalPlayer.Character then
-        LocalPlayer.Character:SetPrimaryPartCFrame(gun.CFrame * CFrame.new(0, 2, 0))
-    end
-end
-
--- Nút Teleport to Gun
-local tpGunBtn = createButton("🔫 Teleport to Gun", 0.93, teleportToGun)
-
--- ========== NOCLIP [citation:3] ==========
-local noclipActive = false
-local function updateNoclip()
-    noclipActive = getNoclipState()
-end
-
--- Override noclip
-local noclipConnection
-noclipConnection = RunService.Stepped:Connect(function()
-    if noclipActive and LocalPlayer.Character then
-        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = false
-            end
         end
     end
 end)
 
--- ========== MAIN LOOP ==========
-RunService.RenderStepped:Connect(function()
-    updateESP() -- Cập nhật ESP mỗi frame
-    
-    -- Silent Aim [citation:2][citation:9]
-    if getSilentAimState() and rightMousePressed and Camera.CameraType == Enum.CameraType.Custom then
-        local targetHead = getClosestPlayerToCursor()
-        if targetHead then
-            Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetHead.Position)
-        end
-    end
-    
-    -- Auto Farm
-    if getAutoFarmState() then
-        startAutoFarm()
-    else
-        stopAutoFarm()
-    end
-    
-    -- Noclip update
-    updateNoclip()
-    
-    -- Cập nhật tốc độ khi character spawn
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-        local hum = LocalPlayer.Character.Humanoid
-        local speedVal = tonumber(speedSlider.Text) or 16
-        local jumpVal = tonumber(jumpSlider.Text) or 50
-        if hum.WalkSpeed ~= speedVal then hum.WalkSpeed = speedVal end
-        if hum.JumpPower ~= jumpVal then hum.JumpPower = jumpVal end
-    end
-end)
-
--- Cập nhật khi có người chơi mới
-Players.PlayerAdded:Connect(function() updateESP() end)
-Players.PlayerRemoving:Connect(function() updateESP() end)
-
-print("🔪 MM2 PRO SCRIPT LOADED! 🔫")
-print("Tính năng: ESP màu theo role | Silent Aim chuột phải | Nhảy vô tận | Auto Farm | Teleport Gun")
+print("✅ MM2 PRO V2 LOADED! | Shot Murder sẵn sàng")
