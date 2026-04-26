@@ -1,3 +1,25 @@
+--[[
+    🔪 MM2 RAYFIELD SCRIPT 🔫
+    - ESP: Murderer(Đỏ), Sheriff(Xanh dương), Innocent(Xanh lá), Hero(Vàng)
+    - Silent Aim (chuột phải)
+    - Auto Farm, Teleport to Gun, Noclip
+    - Tùy chỉnh Speed/Jump (Slider)
+    - Tùy chỉnh vai trò (Dropdown)
+]]
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- Kiểm tra game MM2
+local gameId = game.PlaceId
+if gameId ~= 142823291 and gameId ~= 4824348592 and gameId ~= 1921703135 then
+    warn("Có thể không hoạt động trên game này. Place ID: " .. gameId)
+end
+
 -- ========== LOAD RAYFIELD UI LIBRARY ==========
 local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/shlexware/Rayfield/main/source'))()
 
@@ -18,3 +40,471 @@ local Window = Rayfield:CreateWindow({
     },
     KeySystem = false,
 })
+
+-- ========== VARIABLES ==========
+local espEnabled = true
+local silentAimEnabled = true
+local gunEspEnabled = true
+local autoFarmEnabled = false
+local noclipEnabled = false
+local currentWalkSpeed = 16
+local currentJumpPower = 50
+
+local espObjects = {}
+local autoFarmRunning = false
+
+-- Role Colors [citation:4][citation:10]
+local roleColors = {
+    Murderer = Color3.fromRGB(255, 0, 0),      -- Đỏ
+    Sheriff = Color3.fromRGB(0, 150, 255),     -- Xanh dương
+    Innocent = Color3.fromRGB(0, 255, 0),      -- Xanh lá
+    Hero = Color3.fromRGB(255, 215, 0)         -- Vàng
+}
+
+-- ========== HÀM LẤY ROLE NGƯỜI CHƠI ==========
+local function getPlayerRole(player)
+    -- Kiểm tra backpack
+    if player:FindFirstChild("Backpack") then
+        if player.Backpack:FindFirstChild("Knife") then return "Murderer" end
+        if player.Backpack:FindFirstChild("Gun") then return "Sheriff" end
+    end
+    -- Kiểm tra character
+    if player.Character then
+        if player.Character:FindFirstChild("Knife") then return "Murderer" end
+        if player.Character:FindFirstChild("Gun") then return "Sheriff" end
+        if player.Character:FindFirstChild("Head") and player.Character.Head:FindFirstChild("Handle") then
+            return "Hero"
+        end
+    end
+    return "Innocent"
+end
+
+-- ========== TÍNH KHOẢNG CÁCH ==========
+local function getDistanceFromPlayer(target)
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        return nil
+    end
+    if not target.Character or not target.Character:FindFirstChild("HumanoidRootPart") then
+        return nil
+    end
+    local myPos = LocalPlayer.Character.HumanoidRootPart.Position
+    local targetPos = target.Character.HumanoidRootPart.Position
+    return (myPos - targetPos).Magnitude
+end
+
+-- ========== ESP (CÓ KHOẢNG CÁCH) ==========
+local function updateESP()
+    for _, v in pairs(espObjects) do pcall(function() v:Destroy() end) end
+    espObjects = {}
+    
+    if not espEnabled then return end
+    
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("Head") then
+            local role = getPlayerRole(plr)
+            local color = roleColors[role] or roleColors.Innocent
+            local head = plr.Character.Head
+            local distance = getDistanceFromPlayer(plr)
+            local distanceText = distance and string.format(" [%.1fm]", distance / 3.28) or ""
+            
+            -- Dot ESP
+            local bill = Instance.new("BillboardGui")
+            bill.Size = UDim2.new(0, 4, 0, 4)
+            bill.StudsOffset = Vector3.new(0, 1.5, 0)
+            bill.AlwaysOnTop = true
+            bill.Parent = head
+            
+            local box = Instance.new("Frame")
+            box.Size = UDim2.new(0, 6, 0, 6)
+            box.BackgroundColor3 = color
+            box.BorderSizePixel = 0
+            box.Parent = bill
+            
+            -- NameTag
+            local nameTag = Instance.new("BillboardGui")
+            nameTag.Size = UDim2.new(0, 150, 0, 25)
+            nameTag.StudsOffset = Vector3.new(0, 2.2, 0)
+            nameTag.AlwaysOnTop = true
+            nameTag.Parent = head
+            
+            local nameLabel = Instance.new("TextLabel")
+            nameLabel.Size = UDim2.new(1, 0, 1, 0)
+            nameLabel.BackgroundTransparency = 0.5
+            nameLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+            nameLabel.Text = plr.Name .. " [" .. role .. "]" .. distanceText
+            nameLabel.TextColor3 = color
+            nameLabel.TextSize = 11
+            nameLabel.Font = Enum.Font.GothamBold
+            nameLabel.Parent = nameTag
+            
+            table.insert(espObjects, bill)
+            table.insert(espObjects, nameTag)
+        end
+    end
+    
+    -- Gun ESP [citation:10]
+    if gunEspEnabled then
+        for _, tool in pairs(workspace:GetDescendants()) do
+            if tool:IsA("Tool") and (tool.Name:lower():find("gun") or tool.Name:lower():find("revolver")) then
+                if tool.Parent ~= LocalPlayer.Character and tool.Parent ~= LocalPlayer.Backpack then
+                    local gunBill = Instance.new("BillboardGui")
+                    gunBill.Size = UDim2.new(0, 3, 0, 3)
+                    gunBill.StudsOffset = Vector3.new(0, 0.5, 0)
+                    gunBill.AlwaysOnTop = true
+                    gunBill.Parent = tool
+                    
+                    local gunFrame = Instance.new("Frame")
+                    gunFrame.Size = UDim2.new(0, 8, 0, 8)
+                    gunFrame.BackgroundColor3 = Color3.fromRGB(255, 100, 0)
+                    gunFrame.BorderSizePixel = 0
+                    gunFrame.Parent = gunBill
+                    
+                    local gunTag = Instance.new("BillboardGui")
+                    gunTag.Size = UDim2.new(0, 80, 0, 20)
+                    gunTag.StudsOffset = Vector3.new(0, 1, 0)
+                    gunTag.AlwaysOnTop = true
+                    gunTag.Parent = tool
+                    
+                    local gunLabel = Instance.new("TextLabel")
+                    gunLabel.Size = UDim2.new(1, 0, 1, 0)
+                    gunLabel.BackgroundTransparency = 0.5
+                    gunLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                    gunLabel.Text = "🔫 GUN"
+                    gunLabel.TextColor3 = Color3.fromRGB(255, 100, 0)
+                    gunLabel.TextSize = 10
+                    gunLabel.Font = Enum.Font.GothamBold
+                    gunLabel.Parent = gunTag
+                    
+                    table.insert(espObjects, gunBill)
+                    table.insert(espObjects, gunTag)
+                end
+            end
+        end
+    end
+end
+
+-- ========== SILENT AIM ==========
+local rightMousePressed = false
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        rightMousePressed = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        rightMousePressed = false
+    end
+end)
+
+local function doSilentAim()
+    if not silentAimEnabled then return end
+    if not rightMousePressed then return end
+    if Camera.CameraType ~= Enum.CameraType.Custom then return end
+    
+    local mousePos = UserInputService:GetMouseLocation()
+    local center = Vector2.new(mousePos.X, mousePos.Y)
+    local bestDist = 200
+    local bestHead = nil
+    
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("Head") then
+            local head = plr.Character.Head
+            local screenPos, onScreen = Camera:WorldToScreenPoint(head.Position)
+            if onScreen then
+                local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+                if dist < bestDist then
+                    bestDist = dist
+                    bestHead = head
+                end
+            end
+        end
+    end
+    
+    if bestHead then
+        Camera.CFrame = CFrame.new(Camera.CFrame.Position, bestHead.Position)
+    end
+end
+
+-- ========== AUTO FARM ==========
+local function startAutoFarm()
+    if autoFarmRunning then return end
+    autoFarmRunning = true
+    
+    task.spawn(function()
+        while autoFarmRunning and autoFarmEnabled do
+            for _, obj in pairs(workspace:GetDescendants()) do
+                if obj:IsA("BasePart") and (obj.Name:lower():find("coin") or obj.Name:lower():find("beachball")) then
+                    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                        LocalPlayer.Character.HumanoidRootPart.CFrame = obj.CFrame * CFrame.new(0, 2, 0)
+                    end
+                    break
+                end
+            end
+            task.wait(0.3)
+        end
+    end)
+end
+
+local function stopAutoFarm()
+    autoFarmRunning = false
+end
+
+-- ========== TELEPORT TO GUN ==========
+local function teleportToGun()
+    for _, tool in pairs(workspace:GetDescendants()) do
+        if tool:IsA("Tool") and (tool.Name:lower():find("gun") or tool.Name:lower():find("revolver")) then
+            if tool.Parent ~= LocalPlayer.Character and tool.Parent ~= LocalPlayer.Backpack then
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    LocalPlayer.Character.HumanoidRootPart.CFrame = tool.CFrame * CFrame.new(0, 2, 0)
+                    Rayfield:Notify({
+                        Title = "🔫 Teleported!",
+                        Content = "Đã dịch chuyển đến súng",
+                        Duration = 2
+                    })
+                end
+                break
+            end
+        end
+    end
+end
+
+-- ========== TÙY CHỈNH VAI TRÒ (Dropdown) ==========
+local currentRole = "Innocent"
+
+local function forceRole(role)
+    currentRole = role
+    -- Tìm GUI chọn role trong lobby
+    task.spawn(function()
+        task.wait(1)
+        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+        if playerGui then
+            for _, gui in pairs(playerGui:GetChildren()) do
+                if gui:IsA("ScreenGui") then
+                    for _, btn in pairs(gui:GetDescendants()) do
+                        if btn:IsA("TextButton") and btn.Text:lower():find(role:lower()) then
+                            btn:FireClick()
+                            Rayfield:Notify({
+                                Title = "🎭 Role Selected",
+                                Content = "Đã chọn vai trò: " .. role,
+                                Duration = 2
+                            })
+                            return
+                        end
+                    end
+                end
+            end
+        end
+        -- Cách 2: gửi remote nếu có
+        local remote = ReplicatedStorage:FindFirstChild("ChooseRole") or ReplicatedStorage:FindFirstChild("SelectRole")
+        if remote then
+            remote:FireServer(role)
+        end
+    end)
+end
+
+-- ========== NOCLIP ==========
+local function updateNoclip()
+    if noclipEnabled and LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end
+end
+
+-- ========== SPEED/JUMP CONTROL ==========
+local function updateSpeedJump()
+    if LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
+        if hum then
+            if hum.WalkSpeed ~= currentWalkSpeed then
+                hum.WalkSpeed = currentWalkSpeed
+            end
+            if hum.JumpPower ~= currentJumpPower then
+                hum.JumpPower = currentJumpPower
+            end
+        end
+    end
+end
+
+-- ========== INFINITE JUMP ==========
+UserInputService.JumpRequest:Connect(function()
+    if LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
+        if hum and (hum:GetState() == Enum.HumanoidStateType.Landed or hum:GetState() == Enum.HumanoidStateType.Freefall) then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
+
+-- ========== TẠO TABs ==========
+-- Tab: ESP
+local espTab = Window:CreateTab("👁️ ESP", nil)
+local espSection = espTab:CreateSection("Player ESP")
+
+-- ESP Toggle
+espTab:CreateToggle({
+    Name = "ESP (Bật/Tắt)",
+    CurrentValue = true,
+    Flag = "ESP_Toggle",
+    Callback = function(value)
+        espEnabled = value
+        if not espEnabled then
+            for _, v in pairs(espObjects) do pcall(function() v:Destroy() end) end
+            espObjects = {}
+        end
+    end
+})
+
+-- Gun ESP Toggle [citation:10]
+espTab:CreateToggle({
+    Name = "Gun ESP (Định vị súng)",
+    CurrentValue = true,
+    Flag = "GunESP_Toggle",
+    Callback = function(value)
+        gunEspEnabled = value
+    end
+})
+
+-- Tab: AIMBOT
+local aimTab = Window:CreateTab("🎯 AIMBOT", nil)
+local aimSection = aimTab:CreateSection("Silent Aim")
+
+aimTab:CreateToggle({
+    Name = "Silent Aim (Bật/Tắt)",
+    CurrentValue = true,
+    Flag = "SilentAim_Toggle",
+    Callback = function(value)
+        silentAimEnabled = value
+    end
+})
+
+aimTab:CreateParagraph({
+    Title = "📌 Hướng dẫn",
+    Content = "Giữ chuột phải để Silent Aim\nChỉ hoạt động ở góc nhìn thứ nhất"
+})
+
+-- Tab: FARM
+local farmTab = Window:CreateTab("💰 FARM", nil)
+local farmSection = farmTab:CreateSection("Auto Farm")
+
+farmTab:CreateToggle({
+    Name = "Auto Farm (Bật/Tắt)",
+    CurrentValue = false,
+    Flag = "AutoFarm_Toggle",
+    Callback = function(value)
+        autoFarmEnabled = value
+        if value then
+            startAutoFarm()
+        else
+            stopAutoFarm()
+        end
+    end
+})
+
+-- Tab: TELEPORT
+local tpTab = Window:CreateTab("🚀 TELEPORT", nil)
+local tpSection = tpTab:CreateSection("Teleport")
+
+tpTab:CreateButton({
+    Name = "🔫 Teleport to Gun",
+    Callback = function()
+        teleportToGun()
+    end
+})
+
+-- Tab: OTHER
+local otherTab = Window:CreateTab("⚙️ OTHER", nil)
+local otherSection = otherTab:CreateSection("Movement")
+
+-- Noclip Toggle
+otherTab:CreateToggle({
+    Name = "Noclip (Xuyên tường)",
+    CurrentValue = false,
+    Flag = "Noclip_Toggle",
+    Callback = function(value)
+        noclipEnabled = value
+    end
+})
+
+-- WalkSpeed Slider [citation:2]
+local speedSlider = otherTab:CreateSlider({
+    Name = "Walk Speed",
+    Range = {16, 100},
+    Increment = 1,
+    Suffix = " Speed",
+    CurrentValue = 16,
+    Flag = "Speed_Slider",
+    Callback = function(value)
+        currentWalkSpeed = value
+        updateSpeedJump()
+    end
+})
+
+-- JumpPower Slider
+local jumpSlider = otherTab:CreateSlider({
+    Name = "Jump Power",
+    Range = {50, 200},
+    Increment = 5,
+    Suffix = " Power",
+    CurrentValue = 50,
+    Flag = "Jump_Slider",
+    Callback = function(value)
+        currentJumpPower = value
+        updateSpeedJump()
+    end
+})
+
+-- Role Selection Section
+local roleSection = otherTab:CreateSection("Role Selection (Lobby)")
+
+-- Role Dropdown [citation:5]
+otherTab:CreateDropdown({
+    Name = "Tùy chỉnh vai trò",
+    Options = {"Murderer", "Sheriff", "Innocent"},
+    CurrentOption = "Innocent",
+    Flag = "Role_Dropdown",
+    Callback = function(option)
+        forceRole(option)
+    end
+})
+
+otherTab:CreateParagraph({
+    Title = "📌 Lưu ý",
+    Content = "Chọn vai trò TRƯỚC KHI vào game\nChỉ hoạt động ở lobby"
+})
+
+-- Notify loaded
+Rayfield:Notify({
+    Title = "🔪 MM2 PRO SCRIPT",
+    Content = "Đã tải thành công! Nhấn K để mở/đóng menu",
+    Duration = 5
+})
+
+-- ========== MAIN LOOP ==========
+RunService.RenderStepped:Connect(function()
+    updateESP()
+    doSilentAim()
+    updateNoclip()
+    updateSpeedJump()
+    
+    -- Auto Farm toggle check
+    if autoFarmEnabled and not autoFarmRunning then
+        startAutoFarm()
+    elseif not autoFarmEnabled and autoFarmRunning then
+        stopAutoFarm()
+    end
+end)
+
+-- Cleanup on character respawn
+LocalPlayer.CharacterAdded:Connect(function()
+    updateSpeedJump()
+    task.wait(0.5)
+    updateSpeedJump()
+end)
+
+print("✅ MM2 RAYFIELD SCRIPT LOADED!")
